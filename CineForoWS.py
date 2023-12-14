@@ -98,7 +98,7 @@ for a in soup.find_all('a', href=True):
 descargar_imgs()
 df=pd.DataFrame(enlaces_obras)
 dfImagenes=pd.DataFrame(imagenes)
-dfImagenes = df.rename(columns={df.columns[0]: 'imagenURL'})
+dfImagenes = dfImagenes.rename(columns={df.columns[0]: 'imagenURL'})
 df = df.rename(columns={df.columns[0]: 'Enlace Obra'})
 #print(enlaces_obras)
 #ATENCIÓN VAMOS A ENTRAR TRES VECES A LOS ENLACES PARA QUE EL DATAFRAME NO QUEDE REVUELTO
@@ -258,4 +258,3 @@ except Exception as e:
     print("Error al conectar a la base de datos:", e)
 '''
             
-
