@@ -13,9 +13,10 @@ from selenium.webdriver.common.by import By
 import time
 from sqlalchemy import create_engine
 
-
+#------------------------------------------------------------------------------------------------------------------
+#PARTE 0: Declarar todo lo necesario
 # Ruta donde deseas guardar las imágenes
-ruta_de_guardado = "/Users/carlossalcidoa/Documents/CUCEI - INCO/ServicioS/AuditorioTelmex"
+#ruta_de_guardado = "imagenes_telmex"
 
 #ACCEDER AL URL DE LA PROGRAMACIÓN DEL AUDITORIO
 url = 'https://www.auditorio-telmex.com/programacion.php'
@@ -31,13 +32,20 @@ soup = BeautifulSoup(page_content, 'html.parser')
 title = soup.title.text
 print(f'Título de la página: {title}')
 
-
+#------------------------------------------------------------------------------------------------------------------
+#PARTE 1: 
 logos = soup.find_all(class_='imgLogo')
 txtLogos = soup.find_all(class_='txtLogo')
 
 # Crear una lista para almacenar los datos
 data = []
+ruta_actual = os.getcwd()
+# Crear una carpeta dentro del directorio actual para almacenar las imágenes si no existe
+carpeta_imagenes = 'imagenes_chicas'
+ruta_completa = os.path.join(ruta_actual, carpeta_imagenes)
 
+if not os.path.exists(ruta_completa):
+    os.makedirs(ruta_completa)
 for count, (logo, txtLogo) in enumerate(zip(logos, txtLogos), start=1):
     print('imgLogo', count, ': ', logo)
     # Encuentra la etiqueta de imagen dentro del enlace y obtén el atributo "src"
@@ -53,8 +61,8 @@ for count, (logo, txtLogo) in enumerate(zip(logos, txtLogos), start=1):
             imagen_response = requests.get(imagen_url_abs)
             if imagen_response.status_code == 200:
                 nombre_archivo = f"imagen_chica{count}.jpg"
-                ruta_completa = os.path.join(ruta_de_guardado, nombre_archivo)
-                with open(ruta_completa, "wb") as archivo:
+                ruta_de_guardado = os.path.join(ruta_completa, nombre_archivo)
+                with open(ruta_de_guardado, "wb") as archivo:
                     archivo.write(imagen_response.content)
                 print(f"La imagen relacionada con imgLogo {count} ha sido descargada y guardada en {ruta_completa}")
 
@@ -80,7 +88,8 @@ df = pd.DataFrame(data)
 
 
 
-
+#------------------------------------------------------------------------------------------------------------------
+#PARTE 2: 
 #ACCEDER AL URL DEL AUDITORIO TELMEX, ESTE URL ES DIFERENTE
 url = "https://www.auditorio-telmex.com/"
 response = requests.get(url)
@@ -144,7 +153,8 @@ df_event_links = pd.DataFrame({'Event_Links': event_links})
 
 
 
-
+#------------------------------------------------------------------------------------------------------------------
+#PARTE 3: 
 # DESCARGAR IMAGENES MEDIANAS
 count = 1
 for imagen in imagenes:
@@ -171,8 +181,8 @@ for imagen in imagenes:
 
 
 
-
-#DESCARGAR IMAGENES GRANDES y obtener enlaces de compra (es el mismo para todos)
+#------------------------------------------------------------------------------------------------------------------
+#PARTE 4: DESCARGAR IMAGENES GRANDES y obtener enlaces de compra (es el mismo para todos)
 # Obtén los enlaces de eventos
 count = 1
 print("\n")
@@ -233,8 +243,8 @@ for event_link in event_links:
 
 
 
-
-#EXTRAER INFORMACIÓN DE LOS BOLETOS
+#------------------------------------------------------------------------------------------------------------------
+#PARTE 5: EXTRAER INFORMACIÓN DE LOS BOLETOS
 url2 = enlaces_a_comprar[1]#TODOS LOS ENLACES DE LA LISTA SON IGUALES, ASI QUE DA IGUAL CUAL TOMEMOS
 print("\n\nNuevo URL:", url2)
 # Iniciar un navegador web, esto porque Beautiful Soup no puede
@@ -297,8 +307,8 @@ for enlace in enlaces_ticketmaster:
 
 
 
-
-#UNIR LOS DATAFRAME EN UNO SOLO, LUEGO PASARLO COMO ARCHIVO CSV
+#------------------------------------------------------------------------------------------------------------------
+#PARTE 6: UNIR LOS DATAFRAME EN UNO SOLO, LUEGO PASARLO COMO ARCHIVO CSV
 
 #df2 = pd.read_csv('datos.csv')
 # Combinar los DataFrames verticalmente (uno debajo del otro)
@@ -316,9 +326,8 @@ df_final=pd.concat([df_combined, df_combined2], axis=1)
 df_final.to_csv('CarteleraTelmex.csv', index=False)
 print("---------FIN---------")
 
-
-
-#DATAFRAME DE AUDITORIO TELMEX A MYSQL
+#------------------------------------------------------------------------------------------------------------------
+#PARTE 7: DATAFRAME DE AUDITORIO TELMEX A MYSQL
 try:
     # Crear una conexión a la base de datos MySQL utilizando SQLAlchemy
     engine = create_engine("mysql+mysqlconnector://root:@localhost:3306/EventosAuditorioTelmex")
@@ -330,11 +339,7 @@ try:
 
 except Exception as e:
     # Si hay un error en la conexión o en la operación, imprimirá el mensaje de error
-    print("Error al conectar a la base de datos:", e)
-            
-            
-            
-            
+    print("Error al conectar a la base de datos:", e)           
             
             
             
