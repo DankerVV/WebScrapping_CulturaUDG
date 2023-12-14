@@ -15,23 +15,70 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
 from sqlalchemy import create_engine
+from dateutil import parser
 
-# Configura el controlador del navegador (por ejemplo, Chrome)
+#------------------------------------------------------------------------------------------------------------------
+#PARTE 0: Declarar todo lo necesario
 driver = webdriver.Chrome()
-
 url = 'https://www.conjuntosantander.com/'  # URL DEL CONJUNTO SANTANDER
 response = requests.get(url)
-
 if response.status_code == 200:
     page_content = response.content
     print("Se accedió a la página")
 else:
     print("Error al acceder a la página.")
-
 soup = BeautifulSoup(page_content, 'html.parser')
 
-data = []  # LA LISTA DATA ALMACENA LOS DATOS
+meses = {#----------------------------------------------------------------------
+    'ene': 'jan',
+    'feb': 'feb',
+    'mar': 'mar',
+    'abr': 'apr',
+    'may': 'may',
+    'jun': 'jun',
+    'jul': 'jul',
+    'ago': 'aug',
+    'sep': 'sep',
+    'oct': 'oct',
+    'nov': 'nov',
+    'dic': 'dec'
+}
 
+def eliminar_contenido_si_hay_guion(celda):#----------------------------------------
+    if '-' in str(celda):
+        return ''
+    else:
+        return celda
+
+
+# Define una función para convertir fechas al formato deseado
+def convertir_fecha(fecha):#------------------------------------------------------------
+    if ' y ' in fecha:
+        return fecha
+    if fecha == '':
+        return fecha  # Mantén la casilla vacía si está vacía    
+    for abreviatura, nombre_mes in meses.items():
+       fecha = fecha.replace(abreviatura, nombre_mes)
+    try:
+        fecha_obj = parser.parse(fecha, dayfirst=True, fuzzy=True)
+        return fecha_obj.strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return fecha  # Mantén la casilla original si no se pudo analizar la fecha
+
+
+def convertir_fechas(fila):#------------------------------------------------------------
+    if '/' in fila:
+        # Dividir la fila en las dos fechas
+        fechas = fila.split(' / ')
+        fecha1 = convertir_fecha(fechas[0])
+        fecha2 = convertir_fecha(fechas[1])
+        return f"{fecha1} / {fecha2}"
+    else:
+        # Mantener la fila original sin cambios si no contiene '/'
+        return fila
+
+
+data = []  # LA LISTA DATA ALMACENA LOS DATOS
 # ENCONTRAR LOS ELEMENTOS QUE BUSCAMOS DENTRO DEL CONTENEDOR
 artistas = soup.find_all(class_="txtGris font-12 mb-0 ipad-title")
 fechas = soup.find_all(class_="mb-0 txtGris ipad-txt font-12")
@@ -39,14 +86,11 @@ salas = soup.find_all(class_="mb-0 txtGris font-12 ipad-txt")
 
 imagenes = soup.find_all('img')#Encontrar todos los elementos img
 enlaces = soup.find_all('a', href=lambda href: href and 'https://www.conjuntosantander.com/evento/' in href)
-#for enlace in enlaces:
-#    print(enlace.get('href'))
-#print("\n\n")
 # Verificar que todas las listas tengan la misma longitud
 if len(artistas) == len(fechas) == len(salas):
     for i in range(len(artistas)):
         data.append({
-            'Artista': artistas[i].text.strip(),
+            'Titulo_bien': artistas[i].text.strip(),
             'Fecha': fechas[i].text.strip(),
             'Sala': salas[i].text.strip()
         })
@@ -55,47 +99,43 @@ else:
 
 # HACER UN DATAFRAME Y PONERLE LOS DATOS DE LA LISTA DATA[]
 df = pd.DataFrame(data)
-print(df)
-#df.to_csv("ConjuntoSantander.csv", index=False)
 
 
 
 
-
-#NO BORRAR, LO COMENTÉ PORQUE NO QUIERO TENER LAS IMAGENES EN MI COMPU
-'''
-# Descargar imágenes
+#------------------------------------------------------------------------------------------------------------------
+#PARTE 1: Descargar imágenes
+ruta_actual = os.getcwd()
+carpeta_imagenes = 'imagenes_santander'
+ruta_completa = os.path.join(ruta_actual, carpeta_imagenes)
+if not os.path.exists(ruta_completa):
+    os.makedirs(ruta_completa)
+dfImagenes = pd.DataFrame()
+imagenes_descargadas=[]
 count = 1
 for imagen in imagenes:
     imagen_url_rel = imagen['src']  # URL relativa de la imagen
     if "https://www.conjuntosantander.com/assets/eventos" in imagen_url_rel:
-        # Construye la URL completa utilizando urljoin
         imagen_url_abs = urljoin(url, imagen_url_rel)
-
-        # Realiza una solicitud HTTP GET para obtener la imagen
         imagen_response = requests.get(imagen_url_abs)
 
-        # Verifica si la solicitud fue exitosa (código de estado 200)
         if imagen_response.status_code == 200:
-            # Obtén el nombre del archivo de la URL
-            nombre_archivo = f'imagen_{count}.jpg'
-            # Guarda la imagen en un archivo local
+            #nombre_archivo = f'imagen_{count}.jpg'
+            nombre_archivo = os.path.join(ruta_completa, f'imagen_{count}.jpg')
             with open(nombre_archivo, 'wb') as archivo:
                 archivo.write(imagen_response.content)
-            print(f'La imagen {nombre_archivo} ha sido descargada con éxito.')
+            #print(f'La imagen {nombre_archivo} ha sido descargada con éxito.')
+            imagenes_descargadas.append(nombre_archivo)
             count += 1
         else:
             print(f'Error al descargar la imagen {imagen_url_abs}. Código de estado: {imagen_response.status_code}')
-
-'''
-
-
-
+dfImagenes= pd.DataFrame(imagenes_descargadas)
+dfImagenes = dfImagenes.rename(columns={df.columns[0]: 'imagenURL'})
+dfImagenes.insert(0, 'pertenece', 86)
 
 
-
-
-#ACCEDER A LOS DATOS DE LOS ENLACES
+#------------------------------------------------------------------------------------------------------------------
+#PARTE 2: ACCEDER A LOS DATOS DE LOS ENLACES
 # Crear una lista para almacenar los datos de los enlaces
 datos_enlaces = []
 enlaces_compra = []
@@ -110,7 +150,7 @@ for enlace in enlaces:
         continue  # Saltar el procesamiento de enlaces duplicados
     # Agregar el enlace al conjunto de enlaces procesados
     enlaces_procesados.add(href)
-    print(f'enlace{count}: {href}')
+    #print(f'enlace{count}: {href}')
     count += 1
     # Realizar una solicitud HTTP al enlace para obtener información adicional
     enlace_completo = urljoin(url, href)  # Utilizar urljoin para construir la URL completa
@@ -135,7 +175,7 @@ for enlace in enlaces:
         enlace_compra = soup_enlace.find('a', href=lambda href: href and 'boletos' in href)
         enlace_compra = enlace_compra.get('href')
         enlaces_compra.append(enlace_compra)
-        print("Enlace de compra: ",enlace_compra,"\n")        
+        #print("Enlace de compra: ",enlace_compra,"\n")        
         
         # Agregar los datos del enlace a la lista
         datos_enlaces.append({
@@ -143,7 +183,7 @@ for enlace in enlaces:
             'Título': titulo,
             'Sala': sala2,
             'Fecha': fecha2,
-            'Precio': precio,
+            'Precio': precio
             #'Nota': nota
         })
 
@@ -153,9 +193,9 @@ df_enlaces = pd.DataFrame(datos_enlaces)
 
 
 
-
-# OBTENER FECHAS, HORARIOS Y ENLACES DE BOLETOS
-print("------ComprarBoletos------")
+#------------------------------------------------------------------------------------------------------------------
+#PARTE 3: OBTENER FECHAS, HORARIOS Y ENLACES DE BOLETOS
+#print("------ComprarBoletos------")
 
 # Inicializa listas para almacenar la información de los enlaces de compra
 fechas_lista = []
@@ -190,7 +230,7 @@ for enlace in enlaces_compra:
             # Crear un diccionario para almacenar la información de este evento
             evento_data = {}
             # Agregar los enlaces a este evento
-            for i in range(max_enlaces_por_evento):
+            for i in range(len(enlaces_enlace)):
                 if len(enlaces_enlace) > i:
                     evento_data[f'Enlace_Fecha{i + 1}'] = enlaces_enlace[i]
                 else:
@@ -203,7 +243,7 @@ for enlace in enlaces_compra:
             evento_data = {
                 'Enlace de Compra': "Boletos agotados"
             }
-            for i in range(max_enlaces_por_evento):
+            for i in range(1):
                 evento_data[f'Enlace_{i + 1}'] = ""
             eventos_data.append(evento_data)
             print("Boletos agotados\n")
@@ -220,7 +260,7 @@ for enlace in enlaces_compra:
             # Crear un diccionario para almacenar la información de este evento
             evento_data = {}
             # Agregar las fechas a este evento
-            for i in range(max_fechas_por_enlace):
+            for i in range(len(fechas_enlace)):
                 if len(fechas_enlace) > i:
                     evento_data[f'Fecha_{i + 1}'] = fechas_enlace[i]
                 else:
@@ -233,7 +273,7 @@ for enlace in enlaces_compra:
             evento_data = {
                 'Enlace de Boletos': "Boletos agotados"
             }
-            for i in range(max_fechas_por_enlace):
+            for i in range(1):
                 evento_data[f'Fecha_{i + 1}'] = ""
             eventos_data2.append(evento_data)
             print("Boletos agotados\n")
@@ -244,30 +284,36 @@ for enlace in enlaces_compra:
         #print("Horario:",datetime)
         #fechas_lista.append(datetime)
         # Imprime la URL
-        print("URL del enlace:", url)
+        #print("URL del enlace:", url)
         enlaces_boletos_lista.append(url)
-        print("\n")
+        #dfEventoPresencial["nombreEvento"] = df["Título"]
+        #print("\n")
     
     except :
-        datetime = "Boletos agotados"
-        url = "Boletos agotados"
-        print("Horario:",datetime)
-        fechas_lista.append(datetime)
-        print("URL del enlace:", url)
-        enlaces_boletos_lista.append(url)
-        print("\n")
+        evento_data = {}
+        evento_data[f'Enlace_Fecha{1}'] = "Error"
+        eventos_data.append(evento_data)
+        
+        evento_data = {}
+        evento_data[f'Fecha_{1}'] = "Error"
+        eventos_data2.append(evento_data)
+        #datetime = "Boletos agotados"
+        #url = "Boletos agotados"
+        #print("Horario:",datetime)
+        #fechas_lista.append(datetime)
+        #print("URL del enlace:", url)
+        #enlaces_boletos_lista.append(url)
+        #print("\n")
     
     finally:
         #driver.quit()
         pass
-
-
+#------------------------------------------------------------------------------------------------------------------
+#PARTE 4: acomodar los dataframes   
 df_enlaces_boletos= pd.DataFrame(eventos_data)
 df_eventos = pd.DataFrame(eventos_data2)
 df_temp=pd.concat([df_eventos,df_enlaces_boletos], axis=1)
-# Eliminar columnas completamente vacías
-columnas_a_eliminar = [columna for columna in df_temp.columns if df_temp[columna].isna().all()]
-df_temp = df_temp.drop(columnas_a_eliminar, axis=1)
+
 # Crear un DataFrame solo con la columna de enlaces de boletos
 #df_enlaces_boletos = pd.DataFrame({'Enlace de Boletos': enlaces_boletos_lista})
 
@@ -277,13 +323,17 @@ df_final = pd.concat([df_final, df_temp], axis=1)
 
 # Guardar el DataFrame final en un archivo CSV
 df_final.to_csv('CarteleraConjuntoSantander.csv', index=False)
+dfImagenes.to_csv('img_santander.csv', index=False)
+dfEventoPresencial = pd.DataFrame(columns=["status", "solicitaEvento", "nombreEvento", "subtituloEvento", "areaProgramadora", "categoria",
+                                  "subGenero", "grupoActividad", "sedeUniversitaria","foro", "duracion", "sinopsis", "enlaceVideo", 
+                                  "evento", "temporada", "costoBoleto", "eventoActivo", "dat", "TS", "evento_especial", "otroGenero",
+                                  "tipo_evento"])
 
+dfEventoPresencial["nombreEvento"] = df_final["Titulo_bien"]
 
-
-
-
-
-
+#------------------------------------------------------------------------------------------------------------------
+#PARTE 5: Conexión a MYSQL
+'''
 #DATAFRAME DE CONJUNTO SANTANDER A MYSQL
 try:
     # Crear una conexión a la base de datos MySQL utilizando SQLAlchemy
@@ -299,6 +349,7 @@ try:
 except Exception as e:
     # Si hay un error en la conexión o en la operación, imprimirá el mensaje de error
     print("Error al conectar a la base de datos:", e)
+'''
 
 
 
