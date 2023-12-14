@@ -12,12 +12,10 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 import time
 from sqlalchemy import create_engine
+from dateutil import parser
 
 #------------------------------------------------------------------------------------------------------------------
 #PARTE 0: Declarar todo lo necesario
-# Ruta donde deseas guardar las imágenes
-#ruta_de_guardado = "imagenes_telmex"
-
 #ACCEDER AL URL DE LA PROGRAMACIÓN DEL AUDITORIO
 url = 'https://www.auditorio-telmex.com/programacion.php'
 response = requests.get(url)
@@ -29,8 +27,55 @@ else:
     print("Error al acceder a la página.")
 
 soup = BeautifulSoup(page_content, 'html.parser')
-title = soup.title.text
-print(f'Título de la página: {title}')
+
+meses = {#----------------------------------------------------------------------
+        'Enero': 'jan',
+        'Febrero': 'feb',
+        'Marzo': 'mar',
+        'Abril': 'apr',
+        'Mayo': 'may',
+        'Junio': 'jun',
+        'Julio': 'jul',
+        'Agosto': 'aug',
+        'Septiembre': 'sep',
+        'Octubre': 'oct',
+        'Noviembre': 'nov',
+        'Diciembre': 'dec'
+}
+
+# Función para convertir las fechas
+def convertir_fecha(fecha):
+    if fecha == '':
+        return fecha  # Mantén la casilla vacía si está vacía
+    try:
+        fecha_obj = parser.parse(fecha, dayfirst=True, fuzzy=True)
+        return fecha_obj.strftime("%m-%d")
+    except ValueError:
+        return fecha  # Mantén la casilla original si no se pudo analizar la fecha
+    
+
+# Define una función para convertir horas al formato deseado
+def convertir_hora(hora):
+    if pd.notna(hora) and hora != '':
+        try:
+            hora_obj = parser.parse(hora, fuzzy=True)
+            return hora_obj.strftime("%H:%M:%S")
+        except ValueError:
+            return hora  # Mantén la casilla original si no se pudo analizar la hora
+    else:
+        return hora
+
+# Define una función para convertir fechas y horas al formato deseado
+def convertir_fecha_hora(fecha_hora):
+    if pd.notna(fecha_hora) and fecha_hora != '':
+        try:
+            fecha_hora_obj = parser.parse(fecha_hora, dayfirst=True, fuzzy=True)
+            return fecha_hora_obj.strftime("%m-%d %H:%M:%S")
+        except ValueError:
+            return fecha_hora  # Mantén la casilla original si no se pudo analizar la fecha y hora
+    else:
+        return fecha_hora
+
 
 #------------------------------------------------------------------------------------------------------------------
 #PARTE 1: 
@@ -47,7 +92,6 @@ ruta_completa = os.path.join(ruta_actual, carpeta_imagenes)
 if not os.path.exists(ruta_completa):
     os.makedirs(ruta_completa)
 for count, (logo, txtLogo) in enumerate(zip(logos, txtLogos), start=1):
-    print('imgLogo', count, ': ', logo)
     # Encuentra la etiqueta de imagen dentro del enlace y obtén el atributo "src"
     imagen = logo.find('img')
     if imagen:
@@ -339,7 +383,7 @@ try:
 
 except Exception as e:
     # Si hay un error en la conexión o en la operación, imprimirá el mensaje de error
-    print("Error al conectar a la base de datos:", e)           
+    print("Error al conectar a la base de datos:", e)
             
             
             
