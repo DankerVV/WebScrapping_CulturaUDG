@@ -13,6 +13,10 @@ from selenium.webdriver.common.by import By
 import time
 from sqlalchemy import create_engine
 from dateutil import parser
+from selenium.common.exceptions import ElementClickInterceptedException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
 
 #------------------------------------------------------------------------------------------------------------------
 #PARTE 0: Declarar todo lo necesario
@@ -78,17 +82,15 @@ def convertir_fecha_hora(fecha_hora):
 
 
 #------------------------------------------------------------------------------------------------------------------
-#PARTE 1: 
+#PARTE 1: DESCARGAR IMAGENES CHICAS
 logos = soup.find_all(class_='imgLogo')
 txtLogos = soup.find_all(class_='txtLogo')
 
 # Crear una lista para almacenar los datos
 data = []
 ruta_actual = os.getcwd()
-# Crear una carpeta dentro del directorio actual para almacenar las imágenes si no existe
 carpeta_imagenes = 'imagenes_chicas'
 ruta_completa = os.path.join(ruta_actual, carpeta_imagenes)
-
 if not os.path.exists(ruta_completa):
     os.makedirs(ruta_completa)
 for count, (logo, txtLogo) in enumerate(zip(logos, txtLogos), start=1):
@@ -108,13 +110,12 @@ for count, (logo, txtLogo) in enumerate(zip(logos, txtLogos), start=1):
                 ruta_de_guardado = os.path.join(ruta_completa, nombre_archivo)
                 with open(ruta_de_guardado, "wb") as archivo:
                     archivo.write(imagen_response.content)
-                print(f"La imagen relacionada con imgLogo {count} ha sido descargada y guardada en {ruta_completa}")
 
                 # Obtén el texto de "txtLogo" y agrégalo a la lista de datos
                 #texto_txtLogo = txtLogo.text.strip()
                 #data.append({'Nombre de Archivo': nombre_archivo, 'Texto_txtLogo': texto_txtLogo})
                 texto_txtLogo = txtLogo.find_all(text=True)
-                data_dict = {'Nombre de Archivo': nombre_archivo}
+                data_dict = {'Nombre de Archivo': ruta_de_guardado}
                 for i, texto in enumerate(texto_txtLogo):
                     data_dict[f'Texto_txtLogo{i + 1}'] = texto.strip()
                 data.append(data_dict)
@@ -126,6 +127,10 @@ for count, (logo, txtLogo) in enumerate(zip(logos, txtLogos), start=1):
 
 # Crear un DataFrame de Pandas con los datos
 df = pd.DataFrame(data)
+dfImagenesChicas = df.iloc[:, :1]
+dfImagenesChicas.insert(loc=0, column='pertenece', value='2')
+dfImagenesChicas = dfImagenesChicas.rename(columns={dfImagenesChicas.columns[0]: 'pertenece'})
+dfImagenesChicas = dfImagenesChicas.rename(columns={dfImagenesChicas.columns[1]: 'ImagenURL'})
 # Guardar el DataFrame en un archivo CSV
 #df.to_csv('AuditorioTelmex.csv', index=False)
 
@@ -144,9 +149,7 @@ if response.status_code == 200:
 else:
     print("\nError al acceder a la página.")
 
-soup = BeautifulSoup(page_content, 'html.parser')
-title = soup.title.text
-print(f'Título de la página: {title}')     
+soup = BeautifulSoup(page_content, 'html.parser')     
 
 #EXTRAER INFORMACIÓN DEL URL
 cuadro = soup.find_all(class_='cuadro')
@@ -198,86 +201,76 @@ df_event_links = pd.DataFrame({'Event_Links': event_links})
 
 
 #------------------------------------------------------------------------------------------------------------------
-#PARTE 3: 
-# DESCARGAR IMAGENES MEDIANAS
+#PARTE 3: DESCARGAR IMAGENES MEDIANAS
 count = 1
+data=[]
+ruta_actual = os.getcwd()
+carpeta_imagenes = 'imagenes_medianas'
+ruta_completa = os.path.join(ruta_actual, carpeta_imagenes)
+if not os.path.exists(ruta_completa):
+    os.makedirs(ruta_completa)
+ruta_completa = os.path.join(ruta_actual, carpeta_imagenes)
 for imagen in imagenes:
     imagen_url_rel = imagen['src']  # URL relativa de la imagen
-    # Si la URL contiene "imagen_mediana.jpg", descarga la imagen
     if ("imagen_mediana.jpg" in imagen_url_rel) or ("imagen_mediana.png" in imagen_url_rel):
         # Construye la URL completa utilizando urljoin
         imagen_url_abs = urljoin(url, imagen_url_rel)
-
-        # Realiza una solicitud HTTP GET para obtener la imagen
         imagen_response = requests.get(imagen_url_abs)
-
-        # Verifica si la solicitud fue exitosa (código de estado 200)
         if imagen_response.status_code == 200:
             # Obtén el nombre del archivo de la URL
             nombre_archivo = f'imagen_mediana_{count}.jpg'
-            # Guarda la imagen en un archivo local
-            with open(nombre_archivo, 'wb') as archivo:
+            ruta_de_guardado = os.path.join(ruta_completa, nombre_archivo)
+            with open(ruta_de_guardado, 'wb') as archivo:
                 archivo.write(imagen_response.content)
-            print(f'La imagen {nombre_archivo} ha sido descargada con éxito.')
+            data.append(ruta_de_guardado)
             count += 1
         else:
             print(f'Error al descargar la imagen {imagen_url_abs}. Código de estado: {imagen_response.status_code}')
 
-
+dfImagenesMedianas = pd.DataFrame(data)
+dfImagenesMedianas.insert(loc=0, column='pertenece', value='2')
+dfImagenesMedianas = dfImagenesMedianas.rename(columns={dfImagenesMedianas.columns[0]: 'pertenece'})
+dfImagenesMedianas = dfImagenesMedianas.rename(columns={dfImagenesMedianas.columns[1]: 'ImagenURL'})
 
 #------------------------------------------------------------------------------------------------------------------
 #PARTE 4: DESCARGAR IMAGENES GRANDES y obtener enlaces de compra (es el mismo para todos)
 # Obtén los enlaces de eventos
 count = 1
-print("\n")
+data=[]
+ruta_actual = os.getcwd()
+carpeta_imagenes = 'imagenes_grandes'
+ruta_completa = os.path.join(ruta_actual, carpeta_imagenes)
+if not os.path.exists(ruta_completa):
+    os.makedirs(ruta_completa)
+ruta_completa = os.path.join(ruta_actual, carpeta_imagenes)
 event_links = [href for href in enlaces_href if "evento.php" in href]
-
-# Crea una lista para almacenar las rutas de las imágenes "imagen_grande"
 imagen_grande_links = []
 enlaces_a_comprar = []
 
-# Itera a través de los enlaces de eventos
 for event_link in event_links:
-    # Construye la URL completa del evento utilizando urljoin
     event_url_abs = urljoin(url, event_link)
-
-    # Realiza una solicitud HTTP GET para obtener la página del evento
     event_response = requests.get(event_url_abs)
-
-    # Verifica si la solicitud fue exitosa (código de estado 200)
     if event_response.status_code == 200:
-        # Parsea la página del evento
         event_soup = BeautifulSoup(event_response.content, 'html.parser')
-
-        # Encuentra la imagen con nombre que contiene "imagen_grande"
         imagen_grande = event_soup.find('img', src=lambda x: x and 'imagen_grande' in x)
-        # Buscar todos los elementos <a> en event_soup
         enlaces = event_soup.find_all('a', href=True)
-
-        # Iterar a través de los enlaces y buscar el que contiene 'www.ticketmaster.com' en su atributo 'href'
         for enlace in enlaces:
             href = enlace['href']
             if href and 'www.ticketmaster.com.mx/venue' in href:#OJO! es el mismo enlace para todas las obras
                 enlaces_a_comprar.append(href)
-                print("Enlace a comprar:", href)
                 break
         
         if imagen_grande:
-            # Obtiene la URL de la imagen "imagen_grande"
             imagen_grande_url_rel = imagen_grande['src']
             imagen_grande_url_abs = urljoin(event_url_abs, imagen_grande_url_rel)
-
-            # Realiza una solicitud HTTP GET para descargar la imagen
             imagen_grande_response = requests.get(imagen_grande_url_abs)
 
-            # Verifica si la solicitud de la imagen fue exitosa
             if imagen_grande_response.status_code == 200:
-                # Obtén el nombre del archivo de la URL
                 nombre_archivo = f'imagen_grande_{count}.jpg'
-                # Guarda la imagen en un archivo local
-                with open(nombre_archivo, 'wb') as archivo:
+                ruta_de_guardado = os.path.join(ruta_completa, nombre_archivo)
+                with open(ruta_de_guardado, 'wb') as archivo:
                     archivo.write(imagen_grande_response.content)
-                print(f'La imagen {nombre_archivo} ha sido descargada con éxito.')
+                data.append(ruta_de_guardado)
                 count += 1
             else:
                 print(f'Error al descargar la imagen {imagen_grande_url_abs}. Código de estado: {imagen_grande_response.status_code}')
@@ -285,26 +278,46 @@ for event_link in event_links:
     else:
         print(f'Error al acceder a la página del evento {event_url_abs}. Código de estado: {event_response.status_code}')
 
-
+dfImagenesGrandes = pd.DataFrame(data)
+dfImagenesGrandes.insert(loc=0, column='pertenece', value='2')
+dfImagenesGrandes = dfImagenesGrandes.rename(columns={dfImagenesGrandes.columns[0]: 'pertenece'})
+dfImagenesGrandes = dfImagenesGrandes.rename(columns={dfImagenesGrandes.columns[1]: 'ImagenURL'})
 
 #------------------------------------------------------------------------------------------------------------------
 #PARTE 5: EXTRAER INFORMACIÓN DE LOS BOLETOS
+#ATENCION: resumen del problema, la pagina del auditorio pone muchos impedimentos por alerta de robot
+'''
 url2 = enlaces_a_comprar[1]#TODOS LOS ENLACES DE LA LISTA SON IGUALES, ASI QUE DA IGUAL CUAL TOMEMOS
-print("\n\nNuevo URL:", url2)
+print("Nuevo URL:", url2)
 # Iniciar un navegador web, esto porque Beautiful Soup no puede
 driver = webdriver.Chrome()
 
 # Abrir la página web
 driver.get(url2)
 
-# Encontrar y hacer clic en el botón
-boton = driver.find_element('css selector', 'button[data-testid="pagination-button"]')
-boton.click()
-time.sleep(5)
-# Cierra el navegador
-#driver.quit()
+#OJO: aquí sucede algo extraño que no pasaba antes. Dentro del try se rechazan o aceptan las cookies (eso no cambia el resultado final)
+#Posteriormente, el try falla, sin presionar el botón, así que hago un segundo intento de presionarlo en el except
+#Lo malo es que, parece que el navegador detecta este codigo como un robot, de forma que, aunque se presiona el botón, no se ejecuta su acción
+#En consecuencia, no se puede obtener el enlace de cada obra individual para el auditorio telmex
+try:
+    time.sleep(5)
+    cookies = WebDriverWait(driver, 10).until(
+        #EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[id="onetrust-accept-btn-handler"]'))#aceptar
+        EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[id="onetrust-reject-all-handler"]'))#rechazar
+    )
+    cookies.click()
+    print("cookies aceptadas o rechazadas")
+    time.sleep(5)
+    boton = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[data-testid="pagination-button"]'))
+    )
+    boton.click()
 
-#examinar la página con beautiful soup
+except Exception as e:
+    boton = driver.find_element('css selector', 'button[data-testid="pagination-button"]')
+    boton.click()
+    #print("ERROR:", e)
+
 page_content = driver.page_source
 soup = BeautifulSoup(page_content, 'html.parser')
 # Encontrar todos los enlaces que contienen "https://www.ticketmaster.com.mx/"
@@ -321,35 +334,26 @@ for enlace in enlaces_ticketmaster:
     count+=1
     
     #EN TEORÍA FUNCIONA, PERO NOS BLOQUEA EL ACCESO POR SOSEPECHA DE ROBOT
-    
-    # Obtener el contenido de la página del enlace utilizando requests
     response = requests.get(enlace)
-   
     if response.status_code == 200:
         page_content_enlace = response.content
-        
         # Analizar el contenido del enlace con BeautifulSoup
         enlace_soup = BeautifulSoup(page_content_enlace, 'html.parser')
-       
         # Encontrar elementos con clase "sc-148tjjv-3 izkONI"
         boletos = enlace_soup.find_all(class_='sc-148tjjv-3 izkONI')
-       
         # Encontrar elementos con clase "sc-148tjjv-5 fzyEmD"
         precios = enlace_soup.find_all(class_='sc-148tjjv-5 fzyEmD')
-       
         # Procesar los elementos encontrados como sea necesario
-        for boleto in boletos:
-            print(boleto)
-            pass
+        #for boleto in boletos:
+            #print(boleto)
+            #pass
        
-        for precio in precios:
-            print(precio)
-            pass
+        #for precio in precios:
+            #print(precio)
+            #pass
     else:
         print(f"Error al acceder al enlace. Código de estado: {response.status_code}")
-
-
-
+'''
 
 #------------------------------------------------------------------------------------------------------------------
 #PARTE 6: UNIR LOS DATAFRAME EN UNO SOLO, LUEGO PASARLO COMO ARCHIVO CSV
@@ -358,18 +362,27 @@ for enlace in enlaces_ticketmaster:
 # Combinar los DataFrames verticalmente (uno debajo del otro)
 df_combined = pd.concat([df, df2], axis=1)
 df3 = pd.DataFrame(enlaces_a_comprar)
-df4 = pd.DataFrame(enlaces_ticketmaster2)
-df_combined2= pd.concat([df3, df4], axis=1)
+
+#df4 = pd.DataFrame(enlaces_ticketmaster2)
+#df_combined2= pd.concat([df3, df4], axis=1)
+df_combined2=df3
 df_final=pd.concat([df_combined, df_combined2], axis=1)
-#df
 #df_combined = df_combined.append(enlaces_a_comprar,ignore_index=True)
 #df_combined = df_combined.append(enlaces_ticketmaster2,ignore_index=True)
 
 # Opcionalmente, puedes restablecer los índices si lo deseas
 #df_combined.reset_index(drop=True, inplace=True)
 df_final.to_csv('CarteleraTelmex.csv', index=False)
-print("---------FIN---------")
 
+#Dataframe imagnes chicas
+dfImagenesChicas.to_csv('Imagenes_Chicas.csv', index=False)
+#Dataframe imagnes medianas
+dfImagenesMedianas.to_csv('Imagenes_Medianas.csv', index=False)
+#Dataframe imagnes grandes
+dfImagenesGrandes.to_csv('Imagenes_Grandes.csv', index=False)
+
+
+'''
 #------------------------------------------------------------------------------------------------------------------
 #PARTE 7: DATAFRAME DE AUDITORIO TELMEX A MYSQL
 try:
@@ -384,6 +397,4 @@ try:
 except Exception as e:
     # Si hay un error en la conexión o en la operación, imprimirá el mensaje de error
     print("Error al conectar a la base de datos:", e)
-            
-            
-            
+'''      
