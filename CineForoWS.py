@@ -56,11 +56,11 @@ def descargar_imgs():#----------------------------------------------------------
            # Crear un nombre de archivo para la imagen con un número secuencial
            img_filename = os.path.join("imagenes_cineforo", f"imagen_{index}.jpg")
            img_data = requests.get(img_url).content# Descargar la imagen
-           imagenes.append(img_filename) 
+           
            # Guardar la imagen en el directorio
            with open(img_filename, 'wb') as img_file:
                img_file.write(img_data)
-              
+           imagenes.append(os.path.abspath(img_filename)) 
            #print("Imagen descargada:", img_filename)
 
 def formato_fecha(fecha_hora, hora):#----------------------------------------------------------------------
