@@ -16,6 +16,7 @@ from dateutil import parser
 from selenium.common.exceptions import ElementClickInterceptedException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import datetime
 
 
 #------------------------------------------------------------------------------------------------------------------
@@ -73,8 +74,10 @@ def convertir_hora(hora):
 def convertir_fecha_hora(fecha_hora):
     if pd.notna(fecha_hora) and fecha_hora != '':
         try:
+            anio_actual = str(datetime.datetime.now().year)
+            fecha_hora = anio_actual+fecha_hora
             fecha_hora_obj = parser.parse(fecha_hora, dayfirst=True, fuzzy=True)
-            return fecha_hora_obj.strftime("%m-%d %H:%M:%S")
+            return fecha_hora_obj.strftime("%Y-%m-%d %H:%M:%S")
         except ValueError:
             return fecha_hora  # Mantén la casilla original si no se pudo analizar la fecha y hora
     else:
@@ -98,11 +101,7 @@ for count, (logo, txtLogo) in enumerate(zip(logos, txtLogos), start=1):
     imagen = logo.find('img')
     if imagen:
         imagen_url_rel = imagen['src']  # URL relativa de la imagen
-
-        # Construye la URL completa utilizando urljoin
-        imagen_url_abs = urljoin(url, imagen_url_rel)
-
-        # AQUI SE DESCARGA LA IMAGEN CHICA Y SE GUARDA EN LA RUTA
+        imagen_url_abs = urljoin(url, imagen_url_rel)# URL completa
         try:
             imagen_response = requests.get(imagen_url_abs)
             if imagen_response.status_code == 200:
@@ -111,10 +110,7 @@ for count, (logo, txtLogo) in enumerate(zip(logos, txtLogos), start=1):
                 with open(ruta_de_guardado, "wb") as archivo:
                     archivo.write(imagen_response.content)
 
-                # Obtén el texto de "txtLogo" y agrégalo a la lista de datos
-                #texto_txtLogo = txtLogo.text.strip()
-                #data.append({'Nombre de Archivo': nombre_archivo, 'Texto_txtLogo': texto_txtLogo})
-                texto_txtLogo = txtLogo.find_all(text=True)
+                texto_txtLogo = [texto.strip() for texto in txtLogo.strings if texto.strip()]
                 data_dict = {'Nombre de Archivo': ruta_de_guardado}
                 for i, texto in enumerate(texto_txtLogo):
                     data_dict[f'Texto_txtLogo{i + 1}'] = texto.strip()
@@ -132,9 +128,6 @@ dfImagenesChicas.insert(loc=0, column='pertenece', value='2')
 dfImagenesChicas = dfImagenesChicas.rename(columns={dfImagenesChicas.columns[0]: 'pertenece'})
 dfImagenesChicas = dfImagenesChicas.rename(columns={dfImagenesChicas.columns[1]: 'ImagenURL'})
 # Guardar el DataFrame en un archivo CSV
-#df.to_csv('AuditorioTelmex.csv', index=False)
-
-
 
 
 #------------------------------------------------------------------------------------------------------------------
@@ -157,7 +150,7 @@ infoEvento = soup.find_all(class_='infoEvento efecto')
 fondo = soup.find_all(class_='fondo')
 informacion = soup.find_all(class_='informacion')
 info_tit = soup.find_all(class_='infoTit')
-info_txt = soup.find_all(class_='infoTxt')
+info_txt = soup.find_all(class_='infoTxt')#.get_text(separator='\n', strip=True)
 
 #Encontrar todos los elementos img
 imagenes = soup.find_all('img')
@@ -170,15 +163,14 @@ for i in range(len(cuadro)):
     data2.append({
         'Cuadro': cuadro[i].text.strip(),
         #'InfoEvento': infoEvento[i].text.strip(),
-        'Fondo': fondo[i].text.strip(),
+        #'Fondo': fondo[i].text.strip(),
         'Informacion': informacion[i].text.strip(),
         'InfoTit': info_tit[i].text.strip(),
-        'InfoTxt': info_txt[i].text.strip()
+        'fechas': info_txt[i].get_text(separator='\n', strip=True)#.text.strip()
     })
 
 # Crear un DataFrame a partir de la lista de datos
 df2 = pd.DataFrame(data2)
-
 # Agregar una columna al DataFrame para los enlaces href
 enlaces_href = []
 for enlace in enlaces:
@@ -244,7 +236,6 @@ if not os.path.exists(ruta_completa):
     os.makedirs(ruta_completa)
 ruta_completa = os.path.join(ruta_actual, carpeta_imagenes)
 event_links = [href for href in enlaces_href if "evento.php" in href]
-imagen_grande_links = []
 enlaces_a_comprar = []
 
 for event_link in event_links:
@@ -259,7 +250,7 @@ for event_link in event_links:
             if href and 'www.ticketmaster.com.mx/venue' in href:#OJO! es el mismo enlace para todas las obras
                 enlaces_a_comprar.append(href)
                 break
-        
+        #a descargar las imagenes
         if imagen_grande:
             imagen_grande_url_rel = imagen_grande['src']
             imagen_grande_url_abs = urljoin(event_url_abs, imagen_grande_url_rel)
@@ -361,7 +352,7 @@ for enlace in enlaces_ticketmaster:
 #df2 = pd.read_csv('datos.csv')
 # Combinar los DataFrames verticalmente (uno debajo del otro)
 df_combined = pd.concat([df, df2], axis=1)
-df3 = pd.DataFrame(enlaces_a_comprar)
+df3 = pd.DataFrame(enlaces_a_comprar, columns=["enlaces"])
 
 #df4 = pd.DataFrame(enlaces_ticketmaster2)
 #df_combined2= pd.concat([df3, df4], axis=1)
@@ -381,10 +372,27 @@ dfImagenesMedianas.to_csv('Imagenes_Medianas.csv', index=False)
 #Dataframe imagnes grandes
 dfImagenesGrandes.to_csv('Imagenes_Grandes.csv', index=False)
 
+#Dataframe fechas
+dfFechas = pd.DataFrame(columns=["pertenece", "fecha", "boleto"])
+lista_aux=df_final["fechas"]
+nueva_lista = [item for sublist in [elemento.split('\n') for elemento in lista_aux] for item in sublist]
+dfFechas["fecha"] = nueva_lista
+dfFechas['fecha'] = dfFechas['fecha'].apply(convertir_fecha_hora)
+dfFechas["pertenece"] = 2
+aux = df_final.loc[0,"enlaces"]
+dfFechas["boleto"] = aux
+dfFechas.to_csv("fechas.csv", index=False)
+#Dataframe eventos presenciales
+dfEventoPresencial = pd.DataFrame(columns=["status", "solicitaEvento", "nombreEvento", "subtituloEvento", "areaProgramadora", "categoria",
+                                  "subGenero", "grupoActividad", "sedeUniversitaria","foro", "duracion", "sinopsis", "enlaceVideo", 
+                                  "evento", "temporada", "costoBoleto", "eventoActivo", "dat", "TS", "evento_especial", "otroGenero",
+                                  "tipo_evento"])
+dfEventoPresencial["nombreEvento"] = df["Texto_txtLogo1"]
+dfEventoPresencial.to_csv("eventopresencial.csv", index=False)
 
 '''
 #------------------------------------------------------------------------------------------------------------------
-#PARTE 7: DATAFRAME DE AUDITORIO TELMEX A MYSQL
+#PARTE 7: DATAFRAMES DE AUDITORIO TELMEX A MYSQL
 try:
     # Crear una conexión a la base de datos MySQL utilizando SQLAlchemy
     engine = create_engine("mysql+mysqlconnector://root:@localhost:3306/EventosAuditorioTelmex")
@@ -397,4 +405,4 @@ try:
 except Exception as e:
     # Si hay un error en la conexión o en la operación, imprimirá el mensaje de error
     print("Error al conectar a la base de datos:", e)
-'''      
+'''        
