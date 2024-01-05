@@ -223,8 +223,8 @@ dfImagenes.insert(0, 'pertenece', 5)
 dfImagenes.to_csv("Imagenes.csv", index=False)
 
 #fecha_evento
-dfFechasCineforo.to_csv("FechasCineforo.csv")
-dfFechasCineteca.to_csv("FechasCineteca.csv")
+dfFechasCineforo.to_csv("FechasCineforo.csv", index=False)
+dfFechasCineteca.to_csv("FechasCineteca.csv", index=False)
 
 #eventopresencial
 dfEventoPresencial = pd.DataFrame(columns=["status", "solicitaEvento", "nombreEvento", "subtituloEvento", "areaProgramadora", "categoria",
