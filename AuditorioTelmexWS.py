@@ -301,7 +301,7 @@ driver = webdriver.Chrome()
 driver.get(url2)
 
 #OJO: aquí sucede algo extraño que no pasaba antes. Dentro del try se rechazan o aceptan las cookies (eso no cambia el resultado final)
-#Posteriormente, el try falla, sin presionar el botón, así que hago un segundo intento de presionarlo en el except
+#Posteriormente, el try falla, sin presionar el botón que permite ver todas las obras, así que hago un segundo intento de presionarlo en el except
 #Lo malo es que, parece que el navegador detecta este codigo como un robot, de forma que, aunque se presiona el botón, no se ejecuta su acción
 #En consecuencia, no se puede obtener el enlace de cada obra individual para el auditorio telmex
 try:
