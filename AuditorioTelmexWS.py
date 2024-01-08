@@ -228,7 +228,7 @@ dfImagenesMedianas = dfImagenesMedianas.rename(columns={dfImagenesMedianas.colum
 #PARTE 4: DESCARGAR IMAGENES GRANDES y obtener enlaces de compra (es el mismo para todos)
 # Obtén los enlaces de eventos
 count = 1
-data=[]
+data_img=[]
 ruta_actual = os.getcwd()
 carpeta_imagenes = 'imagenes_grandes'
 ruta_completa = os.path.join(ruta_actual, carpeta_imagenes)
@@ -236,7 +236,7 @@ if not os.path.exists(ruta_completa):
     os.makedirs(ruta_completa)
 ruta_completa = os.path.join(ruta_actual, carpeta_imagenes)
 event_links = [href for href in enlaces_href if "evento.php" in href]
-enlaces_a_comprar = []
+data = []
 
 for event_link in event_links:
     event_url_abs = urljoin(url, event_link)
@@ -245,11 +245,25 @@ for event_link in event_links:
         event_soup = BeautifulSoup(event_response.content, 'html.parser')
         imagen_grande = event_soup.find('img', src=lambda x: x and 'imagen_grande' in x)
         enlaces = event_soup.find_all('a', href=True)
+        diccionario={}
         for enlace in enlaces:
             href = enlace['href']
             if href and 'www.ticketmaster.com.mx/venue' in href:#OJO! es el mismo enlace para todas las obras
-                enlaces_a_comprar.append(href)
+                diccionario['enlaces'] = href    
+                #data.append(href)
                 break
+        sinopsis = event_soup.find(class_='txtInfo')
+        diccionario['Sinopsis'] = sinopsis.text
+        
+        diccionario['Precios'] = []
+        precios = event_soup.find(class_='precios').find_all('li')
+        precios = [item.get_text(strip=True) for item in precios]
+        precios_aux=""
+        for precio in precios:
+            precios_aux = precios_aux + precio + "\n"
+        diccionario['Precios'] = precios_aux
+        data.append(diccionario)
+ 
         #a descargar las imagenes
         if imagen_grande:
             imagen_grande_url_rel = imagen_grande['src']
@@ -261,15 +275,15 @@ for event_link in event_links:
                 ruta_de_guardado = os.path.join(ruta_completa, nombre_archivo)
                 with open(ruta_de_guardado, 'wb') as archivo:
                     archivo.write(imagen_grande_response.content)
-                data.append(ruta_de_guardado)
+                data_img.append(ruta_de_guardado)
                 count += 1
             else:
                 print(f'Error al descargar la imagen {imagen_grande_url_abs}. Código de estado: {imagen_grande_response.status_code}')
     
     else:
         print(f'Error al acceder a la página del evento {event_url_abs}. Código de estado: {event_response.status_code}')
-
-dfImagenesGrandes = pd.DataFrame(data)
+df3 = pd.DataFrame(data)#, columns=["enlaces"])
+dfImagenesGrandes = pd.DataFrame(data_img)
 dfImagenesGrandes.insert(loc=0, column='pertenece', value='2')
 dfImagenesGrandes = dfImagenesGrandes.rename(columns={dfImagenesGrandes.columns[0]: 'pertenece'})
 dfImagenesGrandes = dfImagenesGrandes.rename(columns={dfImagenesGrandes.columns[1]: 'ImagenURL'})
@@ -352,13 +366,12 @@ for enlace in enlaces_ticketmaster:
 #df2 = pd.read_csv('datos.csv')
 # Combinar los DataFrames verticalmente (uno debajo del otro)
 df_combined = pd.concat([df, df2], axis=1)
-df3 = pd.DataFrame(enlaces_a_comprar, columns=["enlaces"])
 
 #df4 = pd.DataFrame(enlaces_ticketmaster2)
 #df_combined2= pd.concat([df3, df4], axis=1)
-df_combined2=df3
-df_final=pd.concat([df_combined, df_combined2], axis=1)
-#df_combined = df_combined.append(enlaces_a_comprar,ignore_index=True)
+#df_combined2=df3
+df_final=pd.concat([df_combined, df3], axis=1)
+#df_combined = df_combined.append(datos,ignore_index=True)
 #df_combined = df_combined.append(enlaces_ticketmaster2,ignore_index=True)
 
 # Opcionalmente, puedes restablecer los índices si lo deseas
@@ -388,6 +401,8 @@ dfEventoPresencial = pd.DataFrame(columns=["status", "solicitaEvento", "nombreEv
                                   "evento", "temporada", "costoBoleto", "eventoActivo", "dat", "TS", "evento_especial", "otroGenero",
                                   "tipo_evento"])
 dfEventoPresencial["nombreEvento"] = df["Texto_txtLogo1"]
+dfEventoPresencial["sinopsis"] = df_final["Sinopsis"]
+dfEventoPresencial["costoBoleto"] = df_final["Precios"]
 dfEventoPresencial.to_csv("eventopresencial.csv", index=False)
 
 '''
@@ -405,4 +420,5 @@ try:
 except Exception as e:
     # Si hay un error en la conexión o en la operación, imprimirá el mensaje de error
     print("Error al conectar a la base de datos:", e)
-'''        
+'''      
+     
